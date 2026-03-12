@@ -1,0 +1,27 @@
+[package]
+name = "mb2-tft-display"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cortex-m-rt = "0.7"
+display-interface = "0.5.0"
+display-interface-spi = "0.5.0"
+embedded-graphics = "0.8.2"
+embedded-hal = "1.0.0"
+embedded-hal-bus = "0.3.0"
+mipidsi = "0.8.0"
+panic-rtt-target = "0.2.0"
+rtt-target = "0.6.2"
+
+[dependencies.microbit-v2]
+version = "0.16.0"
+git = "https://github.com/nrf-rs/microbit"
+
+[dependencies.cortex-m]
+version = "0.7.7"
+features = ["inline-asm", "critical-section-single-core"]
+
+[profile.release]
+debug = true
+
