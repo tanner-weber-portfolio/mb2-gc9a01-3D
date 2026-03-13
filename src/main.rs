@@ -28,6 +28,9 @@ use nalgebra::{Rotation3, Vector3};
 use panic_rtt_target as _;
 use rtt_target::rtt_init_print;
 
+const EDGE_COUNT: usize = 8;
+const VERT_COUNT: usize = 5;
+
 #[entry]
 fn main() -> ! {
     rtt_init_print!();
@@ -88,22 +91,34 @@ fn main() -> ! {
         .unwrap();
 
     // Edges on the tetrahedron corresponding to points in the array.
-    let edges = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
-    let edge_colors = [
+    let edges: [(usize, usize); EDGE_COUNT] = [
+        (0, 1),
+        (0, 2),
+        (0, 3),
+        (0, 4),
+        (1, 2),
+        (2, 3),
+        (3, 4),
+        (4, 1),
+    ];
+    let edge_colors: [Rgb565; EDGE_COUNT] = [
         Rgb565::RED,
         Rgb565::GREEN,
         Rgb565::BLUE,
         Rgb565::YELLOW,
         Rgb565::CSS_VIOLET,
         Rgb565::CSS_PINK,
+        Rgb565::CSS_BROWN,
+        Rgb565::CSS_DARK_GRAY,
     ];
 
     // The 2D points to draw edges between.
-    let mut points: [Point; 4] = [
+    let mut points: [Point; VERT_COUNT] = [
         Point::new(0, 0),
-        Point::new(0, 120),
-        Point::new(120, 0),
-        Point::new(-120, 0),
+        Point::new(0, 0),
+        Point::new(0, 0),
+        Point::new(0, 0),
+        Point::new(0, 0),
     ];
 
     loop {
@@ -111,11 +126,12 @@ fn main() -> ! {
         let (rot_x, rot_y, rot_z) = convert_accel_to_rotation(x, y, z);
 
         // Vertices for a tetrahedron.
-        let mut vertices3d: [Vector3<f32>; 4] = [
-            Vector3::new(10.0f32, 10.0f32, 10.0f32),
-            Vector3::new(10.0f32, -10.0f32, -10.0f32),
+        let mut vertices3d: [Vector3<f32>; VERT_COUNT] = [
+            Vector3::new(0.0f32, 0.0f32, 10.0f32),
             Vector3::new(-10.0f32, 10.0f32, -10.0f32),
-            Vector3::new(-10.0f32, -10.0f32, 10.0f32),
+            Vector3::new(10.0f32, 10.0f32, -10.0f32),
+            Vector3::new(10.0f32, -10.0f32, -10.0f32),
+            Vector3::new(-10.0f32, -10.0f32, -10.0f32),
         ];
 
         for v in vertices3d.iter_mut() {
