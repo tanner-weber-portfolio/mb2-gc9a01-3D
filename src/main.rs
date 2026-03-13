@@ -8,7 +8,7 @@ use embedded_graphics::{
     prelude::*,
     primitives::{Line, PrimitiveStyle},
 };
-use embedded_hal::delay::DelayNs;
+// use embedded_hal::delay::DelayNs;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use microbit::hal::{
     Spim,
@@ -105,7 +105,7 @@ fn main() -> ! {
         ];
 
         for v in vertices3d.iter_mut() {
-            *v = rotate_vertex(v, 0.0, scaled_val, 0.0);
+            *v = rotate_vertex(v, 0.3, 0.3, scaled_val);
         }
 
         for (i, v) in vertices3d.iter().enumerate() {
@@ -134,7 +134,7 @@ fn main() -> ! {
             .unwrap();
         }
 
-        timer0.delay_ms(FRAME_TIME_MS);
+        // timer0.delay_ms(FRAME_TIME_MS);
     }
 }
 
