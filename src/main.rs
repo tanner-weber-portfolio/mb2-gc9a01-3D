@@ -111,11 +111,11 @@ fn main() -> ! {
         let (rot_x, rot_y, rot_z) = convert_accel_to_rotation(x, y, z);
 
         // Vertices for a tetrahedron.
-        let mut vertices3d: [Point3D; 4] = [
-            Point3D::new(10.0f32, 10.0f32, 10.0f32),
-            Point3D::new(10.0f32, -10.0f32, -10.0f32),
-            Point3D::new(-10.0f32, 10.0f32, -10.0f32),
-            Point3D::new(-10.0f32, -10.0f32, 10.0f32),
+        let mut vertices3d: [Vector3<f32>; 4] = [
+            Vector3::new(10.0f32, 10.0f32, 10.0f32),
+            Vector3::new(10.0f32, -10.0f32, -10.0f32),
+            Vector3::new(-10.0f32, 10.0f32, -10.0f32),
+            Vector3::new(-10.0f32, -10.0f32, 10.0f32),
         ];
 
         for v in vertices3d.iter_mut() {
@@ -144,9 +144,10 @@ fn main() -> ! {
     }
 }
 
-fn convert_3d_to_2d_point(p: &Point3D) -> Point {
-    let x = (p.x / p.z) * 25f32 + 0f32;
-    let y = (p.y / p.z) * 25f32 + 0f32;
+/// Projects a 3D vertex to a 2D point.
+fn convert_3d_to_2d_point(v: &Vector3<f32>) -> Point {
+    let x = (v.x / v.z) * 20f32 + 0f32;
+    let y = (v.y / v.z) * 20f32 + 0f32;
     Point {
         x: x as i32,
         y: y as i32,
@@ -160,16 +161,21 @@ fn convert_points_to_display_coords(points: &mut [Point]) {
     }
 }
 
-fn rotate_vertex(point: &Point3D, pitch: f32, yaw: f32, roll: f32) -> Point3D {
+/// Rotates a vertex based on the given angles.
+fn rotate_vertex(
+    vec: &Vector3<f32>,
+    pitch: f32,
+    yaw: f32,
+    roll: f32,
+) -> Vector3<f32> {
     let rot_x = Rotation3::<f32>::from_euler_angles(pitch, 0.0, 0.0);
     let rot_y = Rotation3::<f32>::from_euler_angles(0.0, yaw, 0.0);
     let rot_z = Rotation3::<f32>::from_euler_angles(0.0, 0.0, roll);
     let rotation = rot_z * rot_y * rot_x;
-    let mut v = Vector3::new(point.x, point.y, point.z);
-    v = rotation * v;
-    Point3D::new(v.x, v.y, v.z)
+    rotation * vec
 }
 
+/// Converts the accel valyues from the lsm303agr to rotation angles.
 fn convert_accel_to_rotation(x: i32, y: i32, z: i32) -> (f32, f32, f32) {
     let (x, y, z) = convert_axes(x, y, z);
     (x as f32 / 500.0, y as f32 / 500.0, z as f32 / 500.0)
@@ -180,16 +186,4 @@ fn convert_accel_to_rotation(x: i32, y: i32, z: i32) -> (f32, f32, f32) {
 /// the top is the where the USB port is.
 fn convert_axes(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
     (-x, -z, y)
-}
-
-struct Point3D {
-    x: f32,
-    y: f32,
-    z: f32,
-}
-
-impl Point3D {
-    fn new(x: f32, y: f32, z: f32) -> Self {
-        Self { x, y, z }
-    }
 }
