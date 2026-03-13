@@ -28,6 +28,7 @@ use rtt_target::rtt_init_print;
 const POT_PIN_MAX_READ: i16 = 16_000;
 const EDGE_COUNT: usize = 8;
 const VERT_COUNT: usize = 5;
+const STROKE_WIDTH: u32 = 3;
 
 #[entry]
 fn main() -> ! {
@@ -80,6 +81,15 @@ fn main() -> ! {
     let saadc_config = saadc::SaadcConfig::default();
     let mut saadc = saadc::Saadc::new(board.ADC, saadc_config);
 
+    // Vertices for a tetrahedron.
+    let vertices3d: [Vector3<f32>; VERT_COUNT] = [
+        Vector3::new(0.0f32, 10.0f32, 0.0f32),
+        Vector3::new(10.0f32, -10.0f32, 10.0f32),
+        Vector3::new(-10.0f32, -10.0f32, 10.0f32),
+        Vector3::new(-10.0f32, -10.0f32, -10.0f32),
+        Vector3::new(10.0f32, -10.0f32, -10.0f32),
+    ];
+
     // Edges on the tetrahedron corresponding to points in the array.
     let edges: [(usize, usize); EDGE_COUNT] = [
         (0, 1),
@@ -111,26 +121,21 @@ fn main() -> ! {
         Point::new(0, 0),
     ];
 
+    let camera_pos = Vector3::<f32>::new(30.0, 5.0, 40.0);
+    let display_surface = Vector3::<f32>::new(0.0, 0.0, 20.0);
+
     loop {
         let saadc_result = saadc.read_channel(&mut pot_pin).unwrap();
         let new_rot = scale_saadc_result(saadc_result);
-        let rot_mat = calculate_rotation_matrix(0.0, new_rot, 0.0);
-
-        // Vertices for a tetrahedron.
-        let mut vertices3d: [Vector3<f32>; VERT_COUNT] = [
-            Vector3::new(0.0f32, 0.0f32, 10.0f32),
-            Vector3::new(-10.0f32, 10.0f32, -10.0f32),
-            Vector3::new(10.0f32, 10.0f32, -10.0f32),
-            Vector3::new(10.0f32, -10.0f32, -10.0f32),
-            Vector3::new(-10.0f32, -10.0f32, -10.0f32),
-        ];
-
-        for v in vertices3d.iter_mut() {
-            *v = transform_vertex(v, &rot_mat);
-        }
+        let rotation = Vector3::<f32>::new(-0.2, 0.5, new_rot);
 
         for (i, v) in vertices3d.iter().enumerate() {
-            points[i] = convert_3d_to_2d_point(v);
+            points[i] = convert_vertex_to_2d_point(
+                v,
+                &rotation,
+                &camera_pos,
+                &display_surface,
+            );
         }
 
         convert_points_to_display_coords(&mut points);
@@ -142,20 +147,13 @@ fn main() -> ! {
                 Point::new(points[edge.0].x, points[edge.0].y),
                 Point::new(points[edge.1].x, points[edge.1].y),
             )
-            .into_styled(PrimitiveStyle::with_stroke(edge_colors[i], 5))
+            .into_styled(PrimitiveStyle::with_stroke(
+                edge_colors[i],
+                STROKE_WIDTH,
+            ))
             .draw(&mut display)
             .unwrap();
         }
-    }
-}
-
-/// Projects a 3D vertex to a 2D point.
-fn convert_3d_to_2d_point(v: &Vector3<f32>) -> Point {
-    let x = ((v.x / v.z) * 20f32).clamp(-120f32, 120f32);
-    let y = ((v.y / v.z) * 20f32).clamp(-120f32, 120f32);
-    Point {
-        x: x as i32,
-        y: y as i32,
     }
 }
 
@@ -166,28 +164,34 @@ fn convert_points_to_display_coords(points: &mut [Point]) {
     }
 }
 
-/// Rotates a vertex based on the given angles.
-fn transform_vertex(
+/// Projects a 3D vertex to a 2D point.
+fn convert_vertex_to_2d_point(
     vec: &Vector3<f32>,
-    rot_mat: &Rotation3<f32>,
-) -> Vector3<f32> {
-    rot_mat * vec
-}
+    rotation: &Vector3<f32>,
+    cam_pos: &Vector3<f32>,
+    surf: &Vector3<f32>,
+) -> Point {
+    let theta_x = rotation.x.clamp(0.0, 6.28);
+    let theta_y = rotation.y.clamp(0.0, 6.28);
+    let theta_z = rotation.z.clamp(0.0, 6.28);
 
-/// Rotates a vertex based on the given angles.
-fn calculate_rotation_matrix(
-    pitch: f32,
-    yaw: f32,
-    roll: f32,
-) -> Rotation3<f32> {
-    let pitch = pitch.clamp(0.0, 6.28);
-    let yaw = yaw.clamp(0.0, 6.28);
-    let roll = roll.clamp(0.0, 6.28);
+    let rot_x = Rotation3::<f32>::from_euler_angles(theta_x, 0.0, 0.0);
+    let rot_y = Rotation3::<f32>::from_euler_angles(0.0, theta_y, 0.0);
+    let rot_z = Rotation3::<f32>::from_euler_angles(0.0, 0.0, theta_z);
+    let diff = Vector3::<f32>::new(
+        vec.x - cam_pos.x,
+        vec.y - cam_pos.y,
+        vec.z - cam_pos.z,
+    );
+    let v = rot_x * (rot_y * (rot_z * diff));
 
-    let rot_x = Rotation3::<f32>::from_euler_angles(pitch, 0.0, 0.0);
-    let rot_y = Rotation3::<f32>::from_euler_angles(0.0, yaw, 0.0);
-    let rot_z = Rotation3::<f32>::from_euler_angles(0.0, 0.0, roll);
-    rot_z * rot_y * rot_x
+    let x = (((surf.z / v.z) * v.x) + surf.x).clamp(-120f32, 120f32);
+    let y = (((surf.z / v.z) * v.y) + surf.x).clamp(-120f32, 120f32);
+
+    Point {
+        x: x as i32,
+        y: y as i32,
+    }
 }
 
 /// Takes an i16 number expected to be between 0 and 16384 (2^14) and scales
