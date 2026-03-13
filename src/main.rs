@@ -13,6 +13,7 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 use microbit::hal::{
     Spim,
     gpio::Level,
+    saadc,
     spim::{self, Frequency},
     timer::Timer,
 };
@@ -23,10 +24,10 @@ use mipidsi::{
 };
 use nalgebra::{Rotation3, Vector3};
 use panic_rtt_target as _;
-use rtt_target::rprintln;
 use rtt_target::rtt_init_print;
 
 const FRAME_TIME_MS: u32 = 100;
+const POT_PIN_MAX_READ: i16 = 16_000;
 
 #[entry]
 fn main() -> ! {
@@ -74,13 +75,10 @@ fn main() -> ! {
     )
     .unwrap();
 
-    // Vertices for a tetrahedron.
-    let mut vertices3d: [Point3D; 4] = [
-        Point3D::new(10.0f32, 10.0f32, 10.0f32),
-        Point3D::new(10.0f32, -10.0f32, -10.0f32),
-        Point3D::new(-10.0f32, 10.0f32, -10.0f32),
-        Point3D::new(-10.0f32, -10.0f32, 10.0f32),
-    ];
+    // Set up potentiometer.
+    let mut pot_pin = board.edge.e02.into_floating_input();
+    let saadc_config = saadc::SaadcConfig::default();
+    let mut saadc = saadc::Saadc::new(board.ADC, saadc_config);
 
     // Edges on the tetrahedron corresponding to points in the array.
     let edges = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
@@ -93,32 +91,49 @@ fn main() -> ! {
         Point::new(-120, 0),
     ];
 
-    for v in vertices3d.iter_mut() {
-        *v = rotate_vertex(&v, 0.5, 0.0, 0.0);
-    }
-
-    for (i, v) in vertices3d.iter().enumerate() {
-        points[i] = convert_3d_to_2d_point(v);
-    }
-
-    convert_points_to_display_coords(&mut points);
-
-    rprintln!("Point {:?}", points[0]);
-    rprintln!("Point {:?}", points[1]);
-    rprintln!("Point {:?}", points[2]);
-    rprintln!("Point {:?}", points[3]);
-
-    for e in edges {
-        Line::new(
-            Point::new(points[e.0].x, points[e.0].y),
-            Point::new(points[e.1].x, points[e.1].y),
-        )
-        .into_styled(PrimitiveStyle::with_stroke(Rgb565::BLACK, 5))
-        .draw(&mut display)
-        .unwrap();
-    }
-
     loop {
+        // blocking read from saadc for `saadc_config.time` microseconds
+        let saadc_result = saadc.read_channel(&mut pot_pin).unwrap();
+        let scaled_val = scale_saadc_result(saadc_result);
+
+        // Vertices for a tetrahedron.
+        let mut vertices3d: [Point3D; 4] = [
+            Point3D::new(10.0f32, 10.0f32, 10.0f32),
+            Point3D::new(10.0f32, -10.0f32, -10.0f32),
+            Point3D::new(-10.0f32, 10.0f32, -10.0f32),
+            Point3D::new(-10.0f32, -10.0f32, 10.0f32),
+        ];
+
+        for v in vertices3d.iter_mut() {
+            *v = rotate_vertex(v, 0.0, scaled_val, 0.0);
+        }
+
+        for (i, v) in vertices3d.iter().enumerate() {
+            points[i] = convert_3d_to_2d_point(v);
+        }
+
+        convert_points_to_display_coords(&mut points);
+
+        // rprintln!("Point {:?}", points[0]);
+        // rprintln!("Point {:?}", points[1]);
+        // rprintln!("Point {:?}", points[2]);
+        // rprintln!("Point {:?}", points[3]);
+
+        display.clear(Rgb565::BLACK).unwrap();
+
+        for e in edges {
+            Line::new(
+                Point::new(points[e.0].x, points[e.0].y),
+                Point::new(points[e.1].x, points[e.1].y),
+            )
+            .into_styled(PrimitiveStyle::with_stroke(
+                Rgb565::CSS_DARK_GREEN,
+                5,
+            ))
+            .draw(&mut display)
+            .unwrap();
+        }
+
         timer0.delay_ms(FRAME_TIME_MS);
     }
 }
@@ -147,6 +162,13 @@ fn rotate_vertex(point: &Point3D, pitch: f32, yaw: f32, roll: f32) -> Point3D {
     let mut v = Vector3::new(point.x, point.y, point.z);
     v = rotation * v;
     Point3D::new(v.x, v.y, v.z)
+}
+
+/// Takes an i16 number expected to be between 0 and 16384 (2^14) and scales
+/// it to a value between 0.0 and 1.0.
+fn scale_saadc_result(n: i16) -> f32 {
+    let n = n.clamp(0, POT_PIN_MAX_READ);
+    n as f32 / POT_PIN_MAX_READ as f32
 }
 
 struct Point3D {
