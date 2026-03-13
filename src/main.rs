@@ -8,16 +8,13 @@ use embedded_graphics::{
     prelude::*,
     primitives::{Line, PrimitiveStyle},
 };
-// use embedded_hal::delay::DelayNs;
 use embedded_hal_bus::spi::ExclusiveDevice;
-use lsm303agr::{AccelMode, AccelOutputDataRate, Lsm303agr};
 use microbit::hal::{
     Spim,
     gpio::Level,
-    pac::twim0::frequency::FREQUENCY_A,
+    saadc,
     spim::{self, Frequency},
     timer::Timer,
-    twim::Twim,
 };
 use mipidsi::{
     Builder,
@@ -28,6 +25,7 @@ use nalgebra::{Rotation3, Vector3};
 use panic_rtt_target as _;
 use rtt_target::rtt_init_print;
 
+const POT_PIN_MAX_READ: i16 = 16_000;
 const EDGE_COUNT: usize = 8;
 const VERT_COUNT: usize = 5;
 
@@ -77,18 +75,10 @@ fn main() -> ! {
     )
     .unwrap();
 
-    // Set up lsm303agr
-    let i2c =
-        Twim::new(board.TWIM0, board.i2c_internal.into(), FREQUENCY_A::K100);
-    let mut sensor = Lsm303agr::new_with_i2c(i2c);
-    sensor.init().unwrap();
-    sensor
-        .set_accel_mode_and_odr(
-            &mut timer0,
-            AccelMode::HighResolution,
-            AccelOutputDataRate::Hz50,
-        )
-        .unwrap();
+    // Set up potentiometer.
+    let mut pot_pin = board.edge.e02.into_floating_input();
+    let saadc_config = saadc::SaadcConfig::default();
+    let mut saadc = saadc::Saadc::new(board.ADC, saadc_config);
 
     // Edges on the tetrahedron corresponding to points in the array.
     let edges: [(usize, usize); EDGE_COUNT] = [
@@ -122,9 +112,9 @@ fn main() -> ! {
     ];
 
     loop {
-        let (x, y, z) = sensor.acceleration().unwrap().xyz_mg();
-        let (rot_x, rot_y, rot_z) = convert_accel_to_rotation(x, y, z);
-        let rot_mat = calculate_rotation_matrix(rot_x, rot_y, rot_z);
+        let saadc_result = saadc.read_channel(&mut pot_pin).unwrap();
+        let new_rot = scale_saadc_result(saadc_result);
+        let rot_mat = calculate_rotation_matrix(0.0, new_rot, 0.0);
 
         // Vertices for a tetrahedron.
         let mut vertices3d: [Vector3<f32>; VERT_COUNT] = [
@@ -156,15 +146,13 @@ fn main() -> ! {
             .draw(&mut display)
             .unwrap();
         }
-
-        // timer0.delay_ms(FRAME_TIME_MS);
     }
 }
 
 /// Projects a 3D vertex to a 2D point.
 fn convert_3d_to_2d_point(v: &Vector3<f32>) -> Point {
-    let x = (v.x / v.z) * 20f32 + 0f32;
-    let y = (v.y / v.z) * 20f32 + 0f32;
+    let x = ((v.x / v.z) * 20f32).clamp(-120f32, 120f32);
+    let y = ((v.y / v.z) * 20f32).clamp(-120f32, 120f32);
     Point {
         x: x as i32,
         y: y as i32,
@@ -192,21 +180,19 @@ fn calculate_rotation_matrix(
     yaw: f32,
     roll: f32,
 ) -> Rotation3<f32> {
+    let pitch = pitch.clamp(0.0, 6.28);
+    let yaw = yaw.clamp(0.0, 6.28);
+    let roll = roll.clamp(0.0, 6.28);
+
     let rot_x = Rotation3::<f32>::from_euler_angles(pitch, 0.0, 0.0);
     let rot_y = Rotation3::<f32>::from_euler_angles(0.0, yaw, 0.0);
     let rot_z = Rotation3::<f32>::from_euler_angles(0.0, 0.0, roll);
     rot_z * rot_y * rot_x
 }
 
-/// Converts the accel valyues from the lsm303agr to rotation angles.
-fn convert_accel_to_rotation(x: i32, y: i32, z: i32) -> (f32, f32, f32) {
-    let (x, y, z) = convert_axes(x, y, z);
-    (x as f32 / 500.0, y as f32 / 500.0, z as f32 / 500.0)
-}
-
-/// Converts the 3 axes from the lsm303agr crate acceleration() and xyz_mg()
-/// functions and flips the axes to match the microbit board, such that the
-/// the top is the where the USB port is.
-fn convert_axes(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
-    (-x, -z, y)
+/// Takes an i16 number expected to be between 0 and 16384 (2^14) and scales
+/// it to a radians value between 0.0 and 6.28.
+fn scale_saadc_result(n: i16) -> f32 {
+    let n = n.clamp(0, POT_PIN_MAX_READ);
+    ((n as f32 / POT_PIN_MAX_READ as f32) * 6.28).clamp(0.0, 6.28)
 }
