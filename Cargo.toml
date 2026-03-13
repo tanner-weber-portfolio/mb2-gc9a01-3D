@@ -13,6 +13,7 @@ embedded-hal-bus = "0.3.0"
 mipidsi = "0.8.0"
 panic-rtt-target = "0.2.0"
 rtt-target = "0.6.2"
+lsm303agr = "1.1.0"
 
 [dependencies.microbit-v2]
 version = "0.16.0"

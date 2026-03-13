@@ -10,12 +10,14 @@ use embedded_graphics::{
 };
 // use embedded_hal::delay::DelayNs;
 use embedded_hal_bus::spi::ExclusiveDevice;
+use lsm303agr::{AccelMode, AccelOutputDataRate, Lsm303agr};
 use microbit::hal::{
     Spim,
     gpio::Level,
-    saadc,
+    pac::twim0::frequency::FREQUENCY_A,
     spim::{self, Frequency},
     timer::Timer,
+    twim::Twim,
 };
 use mipidsi::{
     Builder,
@@ -25,9 +27,6 @@ use mipidsi::{
 use nalgebra::{Rotation3, Vector3};
 use panic_rtt_target as _;
 use rtt_target::rtt_init_print;
-
-const FRAME_TIME_MS: u32 = 100;
-const POT_PIN_MAX_READ: i16 = 16_000;
 
 #[entry]
 fn main() -> ! {
@@ -75,13 +74,29 @@ fn main() -> ! {
     )
     .unwrap();
 
-    // Set up potentiometer.
-    let mut pot_pin = board.edge.e02.into_floating_input();
-    let saadc_config = saadc::SaadcConfig::default();
-    let mut saadc = saadc::Saadc::new(board.ADC, saadc_config);
+    // Set up lsm303agr
+    let i2c =
+        Twim::new(board.TWIM0, board.i2c_internal.into(), FREQUENCY_A::K100);
+    let mut sensor = Lsm303agr::new_with_i2c(i2c);
+    sensor.init().unwrap();
+    sensor
+        .set_accel_mode_and_odr(
+            &mut timer0,
+            AccelMode::HighResolution,
+            AccelOutputDataRate::Hz50,
+        )
+        .unwrap();
 
     // Edges on the tetrahedron corresponding to points in the array.
     let edges = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+    let edge_colors = [
+        Rgb565::RED,
+        Rgb565::GREEN,
+        Rgb565::BLUE,
+        Rgb565::YELLOW,
+        Rgb565::CSS_VIOLET,
+        Rgb565::CSS_PINK,
+    ];
 
     // The 2D points to draw edges between.
     let mut points: [Point; 4] = [
@@ -92,9 +107,8 @@ fn main() -> ! {
     ];
 
     loop {
-        // blocking read from saadc for `saadc_config.time` microseconds
-        let saadc_result = saadc.read_channel(&mut pot_pin).unwrap();
-        let scaled_val = scale_saadc_result(saadc_result);
+        let (x, y, z) = sensor.acceleration().unwrap().xyz_mg();
+        let (rot_x, rot_y, rot_z) = convert_accel_to_rotation(x, y, z);
 
         // Vertices for a tetrahedron.
         let mut vertices3d: [Point3D; 4] = [
@@ -105,7 +119,7 @@ fn main() -> ! {
         ];
 
         for v in vertices3d.iter_mut() {
-            *v = rotate_vertex(v, 0.3, 0.3, scaled_val);
+            *v = rotate_vertex(v, rot_x, rot_y, rot_z);
         }
 
         for (i, v) in vertices3d.iter().enumerate() {
@@ -114,22 +128,14 @@ fn main() -> ! {
 
         convert_points_to_display_coords(&mut points);
 
-        // rprintln!("Point {:?}", points[0]);
-        // rprintln!("Point {:?}", points[1]);
-        // rprintln!("Point {:?}", points[2]);
-        // rprintln!("Point {:?}", points[3]);
-
         display.clear(Rgb565::BLACK).unwrap();
 
-        for e in edges {
+        for (i, edge) in edges.iter().enumerate() {
             Line::new(
-                Point::new(points[e.0].x, points[e.0].y),
-                Point::new(points[e.1].x, points[e.1].y),
+                Point::new(points[edge.0].x, points[edge.0].y),
+                Point::new(points[edge.1].x, points[edge.1].y),
             )
-            .into_styled(PrimitiveStyle::with_stroke(
-                Rgb565::CSS_DARK_GREEN,
-                5,
-            ))
+            .into_styled(PrimitiveStyle::with_stroke(edge_colors[i], 5))
             .draw(&mut display)
             .unwrap();
         }
@@ -150,7 +156,7 @@ fn convert_3d_to_2d_point(p: &Point3D) -> Point {
 /// Converts to display coords which range from 0 to 240 on each axis.
 fn convert_points_to_display_coords(points: &mut [Point]) {
     for p in points {
-        *p = Point::new(p.x + 120, p.y + 120);
+        *p = Point::new(p.x + 119, p.y + 119);
     }
 }
 
@@ -164,11 +170,16 @@ fn rotate_vertex(point: &Point3D, pitch: f32, yaw: f32, roll: f32) -> Point3D {
     Point3D::new(v.x, v.y, v.z)
 }
 
-/// Takes an i16 number expected to be between 0 and 16384 (2^14) and scales
-/// it to a value between 0.0 and 1.0.
-fn scale_saadc_result(n: i16) -> f32 {
-    let n = n.clamp(0, POT_PIN_MAX_READ);
-    n as f32 / POT_PIN_MAX_READ as f32
+fn convert_accel_to_rotation(x: i32, y: i32, z: i32) -> (f32, f32, f32) {
+    let (x, y, z) = convert_axes(x, y, z);
+    (x as f32 / 500.0, y as f32 / 500.0, z as f32 / 500.0)
+}
+
+/// Converts the 3 axes from the lsm303agr crate acceleration() and xyz_mg()
+/// functions and flips the axes to match the microbit board, such that the
+/// the top is the where the USB port is.
+fn convert_axes(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
+    (-x, -z, y)
 }
 
 struct Point3D {
