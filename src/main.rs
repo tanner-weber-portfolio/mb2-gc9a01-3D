@@ -124,6 +124,7 @@ fn main() -> ! {
     loop {
         let (x, y, z) = sensor.acceleration().unwrap().xyz_mg();
         let (rot_x, rot_y, rot_z) = convert_accel_to_rotation(x, y, z);
+        let rot_mat = calculate_rotation_matrix(rot_x, rot_y, rot_z);
 
         // Vertices for a tetrahedron.
         let mut vertices3d: [Vector3<f32>; VERT_COUNT] = [
@@ -135,7 +136,7 @@ fn main() -> ! {
         ];
 
         for v in vertices3d.iter_mut() {
-            *v = rotate_vertex(v, rot_x, rot_y, rot_z);
+            *v = transform_vertex(v, &rot_mat);
         }
 
         for (i, v) in vertices3d.iter().enumerate() {
@@ -178,17 +179,23 @@ fn convert_points_to_display_coords(points: &mut [Point]) {
 }
 
 /// Rotates a vertex based on the given angles.
-fn rotate_vertex(
+fn transform_vertex(
     vec: &Vector3<f32>,
+    rot_mat: &Rotation3<f32>,
+) -> Vector3<f32> {
+    rot_mat * vec
+}
+
+/// Rotates a vertex based on the given angles.
+fn calculate_rotation_matrix(
     pitch: f32,
     yaw: f32,
     roll: f32,
-) -> Vector3<f32> {
+) -> Rotation3<f32> {
     let rot_x = Rotation3::<f32>::from_euler_angles(pitch, 0.0, 0.0);
     let rot_y = Rotation3::<f32>::from_euler_angles(0.0, yaw, 0.0);
     let rot_z = Rotation3::<f32>::from_euler_angles(0.0, 0.0, roll);
-    let rotation = rot_z * rot_y * rot_x;
-    rotation * vec
+    rot_z * rot_y * rot_x
 }
 
 /// Converts the accel valyues from the lsm303agr to rotation angles.
