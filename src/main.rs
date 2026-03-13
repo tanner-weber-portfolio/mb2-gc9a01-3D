@@ -6,7 +6,7 @@ use embedded_graphics::{
     Drawable,
     pixelcolor::Rgb565,
     prelude::*,
-    primitives::{PrimitiveStyleBuilder, Triangle},
+    primitives::{Line, PrimitiveStyle},
 };
 use embedded_hal::delay::DelayNs;
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -21,8 +21,12 @@ use mipidsi::{
     models::GC9A01,
     options::{ColorInversion, Orientation, Rotation},
 };
+use nalgebra::{Rotation3, Vector3};
 use panic_rtt_target as _;
+use rtt_target::rprintln;
 use rtt_target::rtt_init_print;
+
+const FRAME_TIME_MS: u32 = 100;
 
 #[entry]
 fn main() -> ! {
@@ -70,29 +74,89 @@ fn main() -> ! {
     )
     .unwrap();
 
-    let triangle = |color| {
-        // make upward-pointing triangle
-        let triangle_style =
-            PrimitiveStyleBuilder::new().fill_color(color).build();
-        Triangle::new(
-            Point { x: 120, y: 70 },  // top vertex (apex)
-            Point { x: 70, y: 170 },  // bottom-left vertex
-            Point { x: 170, y: 170 }, // bottom-right vertex
-        )
-        .into_styled(triangle_style)
-    };
+    // Vertices for a tetrahedron.
+    let mut vertices3d: [Point3D; 4] = [
+        Point3D::new(10.0f32, 10.0f32, 10.0f32),
+        Point3D::new(10.0f32, -10.0f32, -10.0f32),
+        Point3D::new(-10.0f32, 10.0f32, -10.0f32),
+        Point3D::new(-10.0f32, -10.0f32, 10.0f32),
+    ];
 
-    let triangles = [triangle(Rgb565::BLUE), triangle(Rgb565::RED)];
+    // Edges on the tetrahedron corresponding to points in the array.
+    let edges = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
 
-    for i in 0u64.. {
-        // Draw
-        triangles[(i & 1) as usize].draw(&mut display).unwrap();
+    // The 2D points to draw edges between.
+    let mut points: [Point; 4] = [
+        Point::new(0, 0),
+        Point::new(0, 120),
+        Point::new(120, 0),
+        Point::new(-120, 0),
+    ];
 
-        // Hold
-        timer0.delay_ms(1000);
+    for v in vertices3d.iter_mut() {
+        *v = rotate_vertex(&v, 0.5, 0.0, 0.0);
     }
 
-    // Safety: Loop above will either panic or wrap. In
-    // either case we are not getting here.
-    unsafe { core::hint::unreachable_unchecked() }
+    for (i, v) in vertices3d.iter().enumerate() {
+        points[i] = convert_3d_to_2d_point(v);
+    }
+
+    convert_points_to_display_coords(&mut points);
+
+    rprintln!("Point {:?}", points[0]);
+    rprintln!("Point {:?}", points[1]);
+    rprintln!("Point {:?}", points[2]);
+    rprintln!("Point {:?}", points[3]);
+
+    for e in edges {
+        Line::new(
+            Point::new(points[e.0].x, points[e.0].y),
+            Point::new(points[e.1].x, points[e.1].y),
+        )
+        .into_styled(PrimitiveStyle::with_stroke(Rgb565::BLACK, 5))
+        .draw(&mut display)
+        .unwrap();
+    }
+
+    loop {
+        timer0.delay_ms(FRAME_TIME_MS);
+    }
+}
+
+fn convert_3d_to_2d_point(p: &Point3D) -> Point {
+    let x = (p.x / p.z) * 25f32 + 0f32;
+    let y = (p.y / p.z) * 25f32 + 0f32;
+    Point {
+        x: x as i32,
+        y: y as i32,
+    }
+}
+
+/// Converts to display coords which range from 0 to 240 on each axis.
+fn convert_points_to_display_coords(points: &mut [Point]) {
+    for p in points {
+        *p = Point::new(p.x + 120, p.y + 120);
+    }
+}
+
+fn rotate_vertex(point: &Point3D, pitch: f32, yaw: f32, roll: f32) -> Point3D {
+    let rot_x = Rotation3::<f32>::from_euler_angles(pitch, 0.0, 0.0);
+    let rot_y = Rotation3::<f32>::from_euler_angles(0.0, yaw, 0.0);
+    let rot_z = Rotation3::<f32>::from_euler_angles(0.0, 0.0, roll);
+    let rotation = rot_z * rot_y * rot_x;
+    let mut v = Vector3::new(point.x, point.y, point.z);
+    v = rotation * v;
+    Point3D::new(v.x, v.y, v.z)
+}
+
+struct Point3D {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
+impl Point3D {
+    fn new(x: f32, y: f32, z: f32) -> Self {
+        Self { x, y, z }
+    }
 }
