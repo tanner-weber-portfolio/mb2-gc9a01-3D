@@ -113,15 +113,6 @@ fn main() -> ! {
         ],
     );
 
-    // The 2D points to draw edges between.
-    let mut points: [Point; OBJ_VERT_COUNT] = [
-        Point::new(0, 0),
-        Point::new(0, 0),
-        Point::new(0, 0),
-        Point::new(0, 0),
-        Point::new(0, 0),
-    ];
-
     let camera_pos = Vector3::<f32>::new(30.0, 5.0, 40.0);
     let display_surface = Vector3::<f32>::new(0.0, 0.0, 20.0);
 
@@ -129,15 +120,14 @@ fn main() -> ! {
         let saadc_result = saadc.read_channel(&mut pot_pin).unwrap();
         let new_rot = scale_saadc_result(saadc_result);
         let rotation = Vector3::<f32>::new(-0.2, 0.5, new_rot);
-
-        for (i, v) in object.vertices.iter().enumerate() {
-            points[i] = convert_vertex_to_2d_point(
-                v,
+        let mut points: [Point; OBJ_VERT_COUNT] = object.vertices.map(|v| {
+            convert_vertex_to_2d_point(
+                &v,
                 &rotation,
                 &camera_pos,
                 &display_surface,
-            );
-        }
+            )
+        });
 
         convert_points_to_display_coords(&mut points);
 
@@ -161,7 +151,7 @@ fn main() -> ! {
 /// Converts to display coords which range from 0 to 240 on each axis.
 fn convert_points_to_display_coords(points: &mut [Point]) {
     for p in points {
-        *p = Point::new(p.x + 119, p.y + 119);
+        *p = Point::new(p.x + 120, p.y + 120);
     }
 }
 
