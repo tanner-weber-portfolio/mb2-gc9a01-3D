@@ -71,13 +71,6 @@ fn main() -> ! {
         .init(&mut timer0)
         .unwrap();
 
-    // Call `embedded_graphics` `clear()` trait method
-    <_ as embedded_graphics::draw_target::DrawTarget>::clear(
-        &mut display,
-        Rgb565::WHITE,
-    )
-    .unwrap();
-
     // Set up potentiometer.
     let mut pot_pin = board.edge.e02.into_floating_input();
     let saadc_config = saadc::SaadcConfig::default();
@@ -171,13 +164,9 @@ fn convert_vertex_to_2d_point(
     cam_pos: &Vector3<f32>,
     surf: &Vector3<f32>,
 ) -> Point {
-    let theta_x = cam_rot.x.clamp(0.0, TAU);
-    let theta_y = cam_rot.y.clamp(0.0, TAU);
-    let theta_z = cam_rot.z.clamp(0.0, TAU);
-
-    let rot_x = Rotation3::<f32>::from_euler_angles(theta_x, 0.0, 0.0);
-    let rot_y = Rotation3::<f32>::from_euler_angles(0.0, theta_y, 0.0);
-    let rot_z = Rotation3::<f32>::from_euler_angles(0.0, 0.0, theta_z);
+    let rot_x = Rotation3::<f32>::from_euler_angles(cam_rot.x, 0.0, 0.0);
+    let rot_y = Rotation3::<f32>::from_euler_angles(0.0, cam_rot.y, 0.0);
+    let rot_z = Rotation3::<f32>::from_euler_angles(0.0, 0.0, cam_rot.z);
     let diff = Vector3::<f32>::new(
         vec.x - cam_pos.x,
         vec.y - cam_pos.y,
