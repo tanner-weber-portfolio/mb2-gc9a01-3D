@@ -187,9 +187,9 @@ fn convert_vertex_to_2d_point(
 fn rotate_object(obj: &Object3D, n: f32) -> Object3D {
     let rot_mat = Rotation3::<f32>::from_euler_angles(0.0, n, 0.0);
     let mut rotated_obj = obj.clone();
-    for v in rotated_obj.vertices.iter_mut() {
+    rotated_obj.vertices.iter_mut().for_each(|v| {
         *v = rot_mat * *v;
-    }
+    });
     rotated_obj
 }
 
