@@ -6,6 +6,8 @@ This program uses the gc9a01 display with the microbit v2 to show a 3D object.
 The object gets rotated and a potentiometer can be used to look around with the
 camera.
 
+![Image of the program running on hardware](./IMAGE.jpg)
+
 # Acknowledgements 
 
 I used Bart Massey's https://github.com/pdx-cs-rust-embedded/mb2-tft-display
