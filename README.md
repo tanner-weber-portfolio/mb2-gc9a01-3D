@@ -36,7 +36,8 @@ to get started.
 
 The nalgebra crate is used for calculating transformations on the object and
 projection for the camera. The projection should be perspective correct.
-I got all the math from wikipedia.
+I got all the math from wikipedia. The embedded-graphics crate is used to
+draw the edges of the object.
 
 # License
 
