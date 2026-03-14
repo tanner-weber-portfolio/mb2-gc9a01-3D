@@ -3,6 +3,8 @@
 Tanner Weber 2026
 
 This program uses the gc9a01 display with the microbit v2 to show a 3D object.
+The object gets rotated and a potentiometer can be used to look around with the
+camera.
 
 # Acknowledgements 
 
@@ -19,7 +21,8 @@ to get started.
 |p0_17|P13|SCL|
 |p0_13|P15|SDA|
 
-Pot to P2
+|Potentiometer to P02|
+|-|
 
 # 🚀 Build and Run
 
@@ -28,6 +31,10 @@ Pot to P2
 ```cargo embed --release```
 
 # 📖 Writeup
+
+The nalgebra crate is used for calculating transformations on the object and
+projection for the camera. The projection should be perspective correct.
+I got all the math from wikipedia.
 
 # License
 
