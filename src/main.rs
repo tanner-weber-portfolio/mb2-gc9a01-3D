@@ -77,7 +77,7 @@ fn main() -> ! {
     let mut saadc = saadc::Saadc::new(board.ADC, saadc_config);
 
     // A set of colors that will be used for drawing the object.
-    let edge_colors: [Rgb565; 8] = [
+    let edge_colors = [
         Rgb565::RED,
         Rgb565::GREEN,
         Rgb565::BLUE,
@@ -120,15 +120,14 @@ fn main() -> ! {
         let saadc_result = saadc.read_channel(&mut pot_pin).unwrap();
         let new_angle = scale_saadc_result(saadc_result);
         let camera_rotation = Vector3::<f32>::new(0.0, new_angle, 0.0);
-        let mut points: [Point; OBJ_VERT_COUNT] =
-            object_rotated.vertices.map(|v| {
-                convert_vertex_to_2d_point(
-                    &v,
-                    &camera_rotation,
-                    &camera_pos,
-                    &display_surface,
-                )
-            });
+        let mut points = object_rotated.vertices.map(|v| {
+            convert_vertex_to_2d_point(
+                &v,
+                &camera_rotation,
+                &camera_pos,
+                &display_surface,
+            )
+        });
 
         convert_points_to_display_coords(&mut points);
 
