@@ -26,8 +26,8 @@ use panic_rtt_target as _;
 use rtt_target::rtt_init_print;
 
 const POT_PIN_MAX_READ: i16 = 16_000;
-const EDGE_COUNT: usize = 8;
-const VERT_COUNT: usize = 5;
+const OBJ_EDGE_COUNT: usize = 8;
+const OBJ_VERT_COUNT: usize = 5;
 const STROKE_WIDTH: u32 = 3;
 
 #[entry]
@@ -81,27 +81,8 @@ fn main() -> ! {
     let saadc_config = saadc::SaadcConfig::default();
     let mut saadc = saadc::Saadc::new(board.ADC, saadc_config);
 
-    // Vertices for a tetrahedron.
-    let vertices3d: [Vector3<f32>; VERT_COUNT] = [
-        Vector3::new(0.0f32, 10.0f32, 0.0f32),
-        Vector3::new(10.0f32, -10.0f32, 10.0f32),
-        Vector3::new(-10.0f32, -10.0f32, 10.0f32),
-        Vector3::new(-10.0f32, -10.0f32, -10.0f32),
-        Vector3::new(10.0f32, -10.0f32, -10.0f32),
-    ];
-
-    // Edges on the tetrahedron corresponding to points in the array.
-    let edges: [(usize, usize); EDGE_COUNT] = [
-        (0, 1),
-        (0, 2),
-        (0, 3),
-        (0, 4),
-        (1, 2),
-        (2, 3),
-        (3, 4),
-        (4, 1),
-    ];
-    let edge_colors: [Rgb565; EDGE_COUNT] = [
+    // A set of colors that will be used for drawing the object.
+    let edge_colors: [Rgb565; 8] = [
         Rgb565::RED,
         Rgb565::GREEN,
         Rgb565::BLUE,
@@ -112,8 +93,28 @@ fn main() -> ! {
         Rgb565::CSS_DARK_GRAY,
     ];
 
+    let object = Object3D::new(
+        [
+            Vector3::new(0.0f32, 10.0f32, 0.0f32),
+            Vector3::new(10.0f32, -10.0f32, 10.0f32),
+            Vector3::new(-10.0f32, -10.0f32, 10.0f32),
+            Vector3::new(-10.0f32, -10.0f32, -10.0f32),
+            Vector3::new(10.0f32, -10.0f32, -10.0f32),
+        ],
+        [
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (1, 2),
+            (2, 3),
+            (3, 4),
+            (4, 1),
+        ],
+    );
+
     // The 2D points to draw edges between.
-    let mut points: [Point; VERT_COUNT] = [
+    let mut points: [Point; OBJ_VERT_COUNT] = [
         Point::new(0, 0),
         Point::new(0, 0),
         Point::new(0, 0),
@@ -129,7 +130,7 @@ fn main() -> ! {
         let new_rot = scale_saadc_result(saadc_result);
         let rotation = Vector3::<f32>::new(-0.2, 0.5, new_rot);
 
-        for (i, v) in vertices3d.iter().enumerate() {
+        for (i, v) in object.vertices.iter().enumerate() {
             points[i] = convert_vertex_to_2d_point(
                 v,
                 &rotation,
@@ -142,13 +143,13 @@ fn main() -> ! {
 
         display.clear(Rgb565::BLACK).unwrap();
 
-        for (i, edge) in edges.iter().enumerate() {
+        for (i, edge) in object.edges.iter().enumerate() {
             Line::new(
                 Point::new(points[edge.0].x, points[edge.0].y),
                 Point::new(points[edge.1].x, points[edge.1].y),
             )
             .into_styled(PrimitiveStyle::with_stroke(
-                edge_colors[i],
+                edge_colors[i % edge_colors.len()],
                 STROKE_WIDTH,
             ))
             .draw(&mut display)
@@ -199,4 +200,18 @@ fn convert_vertex_to_2d_point(
 fn scale_saadc_result(n: i16) -> f32 {
     let n = n.clamp(0, POT_PIN_MAX_READ);
     ((n as f32 / POT_PIN_MAX_READ as f32) * 6.28).clamp(0.0, 6.28)
+}
+
+struct Object3D {
+    vertices: [Vector3<f32>; OBJ_VERT_COUNT],
+    edges: [(usize, usize); OBJ_EDGE_COUNT],
+}
+
+impl Object3D {
+    fn new(
+        vertices: [Vector3<f32>; OBJ_VERT_COUNT],
+        edges: [(usize, usize); OBJ_EDGE_COUNT],
+    ) -> Self {
+        Self { vertices, edges }
+    }
 }
