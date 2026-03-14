@@ -63,7 +63,7 @@ fn main() -> ! {
 
     // Setup GC9A01 display using mipidsi
     let mut display = Builder::new(GC9A01, spi)
-        .orientation(Orientation::new().rotate(Rotation::Deg180))
+        .orientation(Orientation::new().rotate(Rotation::Deg0))
         .invert_colors(ColorInversion::Inverted)
         .reset_pin(rst)
         .init(&mut timer0)
@@ -113,17 +113,17 @@ fn main() -> ! {
         ],
     );
 
-    let camera_pos = Vector3::<f32>::new(30.0, 5.0, 40.0);
-    let display_surface = Vector3::<f32>::new(0.0, 0.0, 20.0);
+    let camera_pos = Vector3::<f32>::new(0.0, 0.0, 40.0);
+    let display_surface = Vector3::<f32>::new(0.0, 0.0, 100.0);
 
     loop {
         let saadc_result = saadc.read_channel(&mut pot_pin).unwrap();
-        let new_rot = scale_saadc_result(saadc_result);
-        let rotation = Vector3::<f32>::new(-0.2, 0.5, new_rot);
+        let new_angle = scale_saadc_result(saadc_result);
+        let camera_rotation = Vector3::<f32>::new(0.0, new_angle, 0.0);
         let mut points: [Point; OBJ_VERT_COUNT] = object.vertices.map(|v| {
             convert_vertex_to_2d_point(
                 &v,
-                &rotation,
+                &camera_rotation,
                 &camera_pos,
                 &display_surface,
             )
@@ -158,13 +158,13 @@ fn convert_points_to_display_coords(points: &mut [Point]) {
 /// Projects a 3D vertex to a 2D point.
 fn convert_vertex_to_2d_point(
     vec: &Vector3<f32>,
-    rotation: &Vector3<f32>,
+    cam_rot: &Vector3<f32>,
     cam_pos: &Vector3<f32>,
     surf: &Vector3<f32>,
 ) -> Point {
-    let theta_x = rotation.x.clamp(0.0, 6.28);
-    let theta_y = rotation.y.clamp(0.0, 6.28);
-    let theta_z = rotation.z.clamp(0.0, 6.28);
+    let theta_x = cam_rot.x.clamp(0.0, 6.28);
+    let theta_y = cam_rot.y.clamp(0.0, 6.28);
+    let theta_z = cam_rot.z.clamp(0.0, 6.28);
 
     let rot_x = Rotation3::<f32>::from_euler_angles(theta_x, 0.0, 0.0);
     let rot_y = Rotation3::<f32>::from_euler_angles(0.0, theta_y, 0.0);
