@@ -1,4 +1,4 @@
-# Microbit V2 and gc9a01 Display
+# Microbit V2 and gc9a01 Display for a 3D Object
 
 Tanner Weber 2026
 
@@ -37,7 +37,8 @@ to get started.
 The nalgebra crate is used for calculating transformations on the object and
 projection for the camera. The projection should be perspective correct.
 I got all the math from wikipedia. The embedded-graphics crate is used to
-draw the edges of the object.
+draw the edges of the object. I use a framebuffer, so the animation should be
+pretty smooth.
 
 # License
 
