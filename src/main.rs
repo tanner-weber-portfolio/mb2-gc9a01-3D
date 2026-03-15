@@ -8,6 +8,7 @@ use embedded_graphics::{
     prelude::*,
     primitives::{Line, PrimitiveStyle},
 };
+use embedded_hal::delay::DelayNs;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use microbit::hal::{
     Spim,
@@ -25,6 +26,8 @@ use nalgebra::{Rotation3, Vector3};
 use panic_rtt_target as _;
 use rtt_target::rtt_init_print;
 
+const FRAMETIME_MS: u32 = 10;
+const BACKGROUND_COLOR: Rgb565 = Rgb565::BLACK;
 const TAU: f32 = core::f32::consts::TAU;
 const POT_PIN_MAX_READ: i16 = 16_000;
 const OBJ_EDGE_COUNT: usize = 8;
@@ -131,7 +134,7 @@ fn main() -> ! {
 
         convert_points_to_display_coords(&mut points);
 
-        display.clear(Rgb565::BLACK).unwrap();
+        display.clear(BACKGROUND_COLOR).unwrap();
 
         for (i, edge) in object.edges.iter().enumerate() {
             Line::new(
@@ -145,6 +148,7 @@ fn main() -> ! {
             .draw(&mut display)
             .unwrap();
         }
+        timer0.delay_ms(FRAMETIME_MS);
     }
 }
 
