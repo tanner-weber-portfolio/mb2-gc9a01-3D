@@ -4,7 +4,8 @@
 use cortex_m_rt::entry;
 use embedded_graphics::{
     Drawable,
-    pixelcolor::Rgb565,
+    framebuffer::buffer_size,
+    pixelcolor::{Rgb565, raw::LittleEndian},
     prelude::*,
     primitives::{Line, PrimitiveStyle},
 };
@@ -34,6 +35,8 @@ const OBJ_EDGE_COUNT: usize = 8;
 const OBJ_VERT_COUNT: usize = 5;
 const STROKE_WIDTH: u32 = 3;
 const RADIANS_TO_ROTATE_PER_FRAME: f32 = 0.3;
+const SCREEN_WIDTH: usize = 240;
+const SCREEN_HEIGHT: usize = 240;
 
 #[entry]
 fn main() -> ! {
@@ -79,6 +82,16 @@ fn main() -> ! {
     let saadc_config = saadc::SaadcConfig::default();
     let mut saadc = saadc::Saadc::new(board.ADC, saadc_config);
 
+    // Set up frame buffer
+    let mut framebuffer = embedded_graphics::framebuffer::Framebuffer::<
+        Rgb565,
+        _,
+        LittleEndian,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        { buffer_size::<Rgb565>(SCREEN_WIDTH, SCREEN_HEIGHT) },
+    >::new();
+
     // A set of colors that will be used for drawing the object.
     let edge_colors = [
         Rgb565::RED,
@@ -91,6 +104,7 @@ fn main() -> ! {
         Rgb565::CSS_DARK_GRAY,
     ];
 
+    // The object to display. Edge tuples are based on index in vertices.
     let object = Object3D::new(
         [
             Vector3::new(0.0f32, 10.0f32, 0.0f32),
@@ -134,7 +148,7 @@ fn main() -> ! {
 
         convert_points_to_display_coords(&mut points);
 
-        display.clear(BACKGROUND_COLOR).unwrap();
+        framebuffer.clear(BACKGROUND_COLOR).unwrap();
 
         for (i, edge) in object.edges.iter().enumerate() {
             Line::new(
@@ -145,9 +159,11 @@ fn main() -> ! {
                 edge_colors[i % edge_colors.len()],
                 STROKE_WIDTH,
             ))
-            .draw(&mut display)
+            .draw(&mut framebuffer)
             .unwrap();
         }
+        framebuffer.as_image().draw(&mut display).unwrap();
+
         timer0.delay_ms(FRAMETIME_MS);
     }
 }
@@ -155,7 +171,10 @@ fn main() -> ! {
 /// Converts to display coords which range from 0 to 240 on each axis.
 fn convert_points_to_display_coords(points: &mut [Point]) {
     for p in points {
-        *p = Point::new(p.x + 120, p.y + 120);
+        *p = Point::new(
+            p.x + SCREEN_WIDTH as i32 / 2,
+            p.y + SCREEN_HEIGHT as i32 / 2,
+        );
     }
 }
 
